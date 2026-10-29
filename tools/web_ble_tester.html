@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32-C3 Super Mini — Web Bluetooth Pendant & 30s Voice-to-Text Tester</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #ef4444;
+      --green: #10b981;
+      --border: #334155;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+    }
+    .container {
+      width: 100%;
+      max-width: 620px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-top: 10px;
+    }
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      background: #334155;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+    .badge.connected {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge.alert {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      animation: pulse 1s infinite alternate;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+    .btn-secondary {
+      background: #334155;
+      color: #cbd5e1;
+    }
+    .btn-secondary:hover {
+      background: #475569;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .sos-container {
+      text-align: center;
+      padding: 30px 20px;
+    }
+    .sos-button {
+      width: 160px;
+      height: 160px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      font-size: 38px;
+      font-weight: 900;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
+      cursor: pointer;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s;
+    }
+    .sos-button.alarm {
+      animation: sosPulse 0.5s infinite alternate;
+    }
+    .sos-button span {
+      font-size: 12px;
+      letter-spacing: 1px;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+    @keyframes sosPulse {
+      from { transform: scale(1); box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+      to { transform: scale(1.08); box-shadow: 0 0 50px rgba(239, 68, 68, 0.9); }
+    }
+    .voice-box {
+      margin-top: 18px;
+      background: #0f172a;
+      border: 1.5px solid var(--accent);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: left;
+    }
+    .voice-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .rec-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: blink 0.8s infinite alternate;
+    }
+    @keyframes blink {
+      from { opacity: 0.3; }
+      to { opacity: 1; }
+    }
+    .transcript-content {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 12px;
+      color: #f1f5f9;
+      font-size: 14px;
+      min-height: 48px;
+      margin-top: 6px;
+      border: 1px solid var(--border);
+    }
+    .sms-preview {
+      background: #0f172a;
+      border: 1px solid var(--green);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 14px;
+      text-align: left;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+    .console {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      height: 150px;
+      overflow-y: auto;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+    .log-line {
+      margin-bottom: 4px;
+    }
+    .log-line.alert {
+      color: #f87171;
+      font-weight: bold;
+    }
+    .log-line.success {
+      color: #34d399;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="tag">Crime Alert System • Web BLE &amp; Voice-to-Text Suite</div>
+      <h1>ESP32-C3 &amp; 30s Speech-to-Text Console</h1>
+    </div>
+
+    <div class="card">
+      <div class="status-row">
+        <div>
+          <h3 id="devName">Device: Not Connected</h3>
+          <p style="color: var(--muted); font-size: 12px;">Push button wired to GPIO4 &amp; GND on ESP32-C3</p>
+        </div>
+        <div id="statusBadge" class="badge">OFFLINE</div>
+      </div>
+
+      <div class="btn-group">
+        <button id="connectBtn" class="btn-primary" onclick="connectBle()">Pair &amp; Connect ESP32</button>
+        <button id="disconnectBtn" class="btn-secondary" onclick="disconnectBle()" disabled>Disconnect</button>
+      </div>
+    </div>
+
+    <div class="card sos-container">
+      <button id="sosBtn" class="sos-button" onclick="manualSimulateClick()">
+        SOS
+        <span id="sosSub">CLICK GPIO4</span>
+      </button>
+
+      <div id="alertBanner" style="margin-top: 20px; display: none;">
+        <h2 style="color: var(--accent); margin-bottom: 6px;">🚨 GPIO4 ALERT TRIGGERED!</h2>
+        <p style="color: var(--muted); font-size: 14px;">Incoming BLE signal received. Starting 30s voice recording countdown.</p>
+
+        <!-- 30s Live Voice Recording & Real-time Transcription Box -->
+        <div class="voice-box">
+          <div class="voice-header">
+            <div class="rec-dot"></div>
+            <span>MICROPHONE LIVE RECORDING &amp; TRANSCRIBING (<span id="countdownTimer">30</span>s)</span>
+          </div>
+          <p style="font-size: 12px; color: var(--muted);">Speak now into your microphone. Your words will be transcribed in real-time:</p>
+          <div id="transcriptBox" class="transcript-content">
+            <em>Listening... speak clearly (e.g. "I am being followed, send help immediately!")</em>
+          </div>
+
+          <div id="smsResultBox" class="sms-preview" style="display: none;">
+            <strong style="color: var(--green);">📨 EMERGENCY SMS DISPATCHED:</strong>
+            <p id="smsText" style="margin-top: 6px; white-space: pre-wrap;"></p>
+          </div>
+        </div>
+
+        <button class="btn-secondary" style="margin-top: 14px; max-width: 200px;" onclick="resetAlert()">Cancel SOS &amp; Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted);">Live Hardware Logs</h3>
+        <button onclick="clearLogs()" style="flex: none; padding: 4px 10px; font-size: 11px;" class="btn-secondary">Clear</button>
+      </div>
+      <div id="consoleLog" class="console">
+        <div class="log-line">Ready. Click 'Pair &amp; Connect ESP32' or press 'SOS' button to test 30s speech recording.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const SOS_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+    let bleDevice = null;
+    let sosChar = null;
+    let audioCtx = null;
+    let recognition = null;
+    let countdownInterval = null;
+    let remainingSeconds = 30;
+    let accumulatedTranscript = "";
+
+    function log(msg, type = "") {
+      const consoleEl = document.getElementById("consoleLog");
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement("div");
+      div.className = "log-line " + type;
+      div.textContent = `[${time}] ${msg}`;
+      consoleEl.prepend(div);
+    }
+
+    function clearLogs() {
+      document.getElementById("consoleLog").innerHTML = "";
+    }
+
+    function playBeep() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Web Speech Recognition for in-browser testing
+    function startBrowserSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      accumulatedTranscript = "";
+      document.getElementById("transcriptBox").innerHTML = "<em>Listening... speak into your microphone now...</em>";
+      document.getElementById("smsResultBox").style.display = "none";
+
+      if (!SpeechRecognition) {
+        log("Web Speech API not supported in this browser. (Chrome/Edge recommended)", "alert");
+        document.getElementById("transcriptBox").textContent = "[Microphone active in native Android app; Web Speech API not supported in this browser]";
+        return;
+      }
+
+      try {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || "en-US";
+
+        recognition.onresult = (event) => {
+          let interim = "";
+          let final = "";
+          for (let i = 0; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              final += event.results[i][0].transcript + " ";
+            } else {
+              interim += event.results[i][0].transcript;
+            }
+          }
+          accumulatedTranscript = (final + interim).trim();
+          document.getElementById("transcriptBox").textContent = `“${accumulatedTranscript}”`;
+          log(`[Speech-To-Text] “${accumulatedTranscript}”`);
+        };
+
+        recognition.onerror = (event) => {
+          log(`Speech Recognition notice: ${event.error}`);
+        };
+
+        recognition.start();
+        log("🎙️ Microphone live! Recording & converting voice to text for 30s...", "success");
+      } catch (e) {
+        log("Speech Recognition startup note: " + e.message);
+      }
+    }
+
+    function stopBrowserSpeechRecognition() {
+      if (recognition) {
+        try { recognition.stop(); } catch(e){}
+        recognition = null;
+      }
+    }
+
+    async function connectBle() {
+      if (!navigator.bluetooth) {
+        alert("Web Bluetooth is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+        return;
+      }
+
+      try {
+        log("Requesting Bluetooth device matching 'CrimeAlertPendant'...");
+        bleDevice = await navigator.bluetooth.requestDevice({
+          filters: [
+            { name: "CrimeAlertPendant" },
+            { services: [SERVICE_UUID] }
+          ],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        log(`Connecting to GATT Server on ${bleDevice.name}...`);
+        const server = await bleDevice.gatt.connect();
+
+        log("Discovering safety service...");
+        const service = await server.getPrimaryService(SERVICE_UUID);
+
+        log("Getting SOS characteristic...");
+        sosChar = await service.getCharacteristic(SOS_CHAR_UUID);
+
+        await sosChar.startNotifications();
+        sosChar.addEventListener('characteristicvaluechanged', handleSosNotification);
+
+        document.getElementById("devName").textContent = `Device: ${bleDevice.name}`;
+        const badge = document.getElementById("statusBadge");
+        badge.textContent = "CONNECTED";
+        badge.className = "badge connected";
+        document.getElementById("connectBtn").disabled = true;
+        document.getElementById("disconnectBtn").disabled = false;
+
+        log("Subscribed to SOS notifications from ESP32 GPIO4!", "success");
+      } catch (err) {
+        log("Connection error: " + err.message, "alert");
+      }
+    }
+
+    function handleSosNotification(event) {
+      const value = event.target.value.getUint8(0);
+      log(`Notification received: 0x0${value.toString(16)}`, "alert");
+
+      if (value === 1) {
+        triggerSosAlarm("ESP32-C3 Push Button (GPIO4)");
+      }
+    }
+
+    function triggerSosAlarm(source) {
+      playBeep();
+      const sosBtn = document.getElementById("sosBtn");
+      sosBtn.classList.add("alarm");
+      document.getElementById("alertBanner").style.display = "block";
+      const badge = document.getElementById("statusBadge");
+      badge.textContent = "ALERT!";
+      badge.className = "badge alert";
+      log(`🚨 SOS EVENT DETECTED from ${source}!`, "alert");
+
+      // Start 30-second Countdown & Voice Recording
+      remainingSeconds = 30;
+      document.getElementById("countdownTimer").textContent = remainingSeconds;
+      document.getElementById("sosSub").textContent = `${remainingSeconds}s REC`;
+      startBrowserSpeechRecognition();
+
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        remainingSeconds--;
+        document.getElementById("countdownTimer").textContent = remainingSeconds;
+        document.getElementById("sosSub").textContent = `${remainingSeconds}s REC`;
+
+        if (remainingSeconds <= 0) {
+          clearInterval(countdownInterval);
+          stopBrowserSpeechRecognition();
+          finalizeDispatch();
+        }
+      }, 1000);
+    }
+
+    function finalizeDispatch() {
+      log("🚨 30-Second Countdown Finished! Emergency SMS with voice transcript dispatched!", "alert");
+      document.getElementById("sosSub").textContent = "DISPATCHED";
+      const voiceNote = accumulatedTranscript || "(No voice detected during 30s recording)";
+      const fullSms = `EMERGENCY! I need immediate help. Sent from Crime Alert Pendant.\n\n🎙️ Voice Note: "${voiceNote}"\n\n📍 Location: https://maps.google.com/?q=17.3850,78.4867`;
+
+      const resultBox = document.getElementById("smsResultBox");
+      document.getElementById("smsText").textContent = fullSms;
+      resultBox.style.display = "block";
+      playBeep();
+    }
+
+    function manualSimulateClick() {
+      triggerSosAlarm("Manual Browser SOS Click");
+    }
+
+    function resetAlert() {
+      clearInterval(countdownInterval);
+      stopBrowserSpeechRecognition();
+
+      const sosBtn = document.getElementById("sosBtn");
+      sosBtn.classList.remove("alarm");
+      document.getElementById("sosSub").textContent = "CLICK GPIO4";
+      document.getElementById("alertBanner").style.display = "none";
+      const badge = document.getElementById("statusBadge");
+      if (bleDevice && bleDevice.gatt.connected) {
+        badge.textContent = "CONNECTED";
+        badge.className = "badge connected";
+      } else {
+        badge.textContent = "OFFLINE";
+        badge.className = "badge";
+      }
+      log("Alert and 30s voice recording cancelled.");
+    }
+
+    function disconnectBle() {
+      if (bleDevice && bleDevice.gatt.connected) {
+        bleDevice.gatt.disconnect();
+      }
+    }
+
+    function onDisconnected() {
+      document.getElementById("devName").textContent = "Device: Not Connected";
+      const badge = document.getElementById("statusBadge");
+      badge.textContent = "DISCONNECTED";
+      badge.className = "badge";
+      document.getElementById("connectBtn").disabled = false;
+      document.getElementById("disconnectBtn").disabled = true;
+      log("ESP32 disconnected.");
+    }
+  </script>
+</body>
+</html>
